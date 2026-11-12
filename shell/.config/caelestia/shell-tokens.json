@@ -1,0 +1,60 @@
+{
+    "sizes": {
+        "bar": {
+            "innerWidth": 30,
+            "trayMenuWidth": 260,
+            "batteryWidth": 220,
+            "networkWidth": 280,
+            "audioWidth": 280,
+            "kbLayoutWidth": 280,
+            "windowPreviewSize": 320
+        },
+        "dashboard": {
+            "userWidth": 320,
+            "logoSize": 24,
+            "uptimeSize": 24,
+            "dateTimeWidth": 90,
+            "mediaWidth": 160,
+            "weatherWidth": 220,
+            "mediaCoverArtSize": 150,
+            "mediaTabWidth": 720,
+            "mediaTabHeight": 240,
+            "mediaSectionWidth": 230,
+            "perfHeroCardWidth": 300,
+            "perfUsageShapeSize": 76,
+            "perfStorageTextWidth": 100,
+            "perfNetworkCardWidth": 166,
+            "perfNetworkCardHeight": 165,
+            "perfBattWidth": 100,
+            "perfBattWidthSingle": 300,
+            "perfBattHeight": 120,
+            "perfPlaceholderWidth": 520
+        },
+        "launcher": {
+            "itemWidth": 480,
+            "itemHeight": 50,
+            "wallpaperWidth": 220,
+            "wallpaperHeight": 150
+        },
+        "lock": {
+            "heightMult": 0.6,
+            "ratio": 0.8
+        },
+        "notifs": {
+            "width": 360
+        },
+        "osd": {
+            "sliderHeight": 130
+        },
+        "session": {
+            "button": 64
+        },
+        "sidebar": {
+            "width": 360
+        },
+        "utilities": {
+            "width": 360,
+            "toastWidth": 360
+        }
+    }
+}

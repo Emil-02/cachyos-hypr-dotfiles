@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Membangun ~/.config/quickshell/caelestia sebagai "overlay" dari shell Caelestia sistem.
+# Semua file menunjuk (symlink) ke /etc/xdg/quickshell/caelestia, kecuali file kustom
+# di ~/.local/share/caelestia-custom yang menimpa file aslinya (mis. lockscreen minimalis).
+#
+# Pemakaian:
+#   caelestia-overlay          bangun ulang hanya jika caelestia-shell/kustomisasi berubah
+#   caelestia-overlay --paksa  selalu bangun ulang
+#   caelestia-overlay --hapus  matikan kustomisasi (kembali ke tampilan asli)
+# Setelah overlay berubah, restart shell: caelestia shell -k && caelestia shell -d
+set -uo pipefail
+
+SRC=/etc/xdg/quickshell/caelestia
+CUSTOM="$HOME/.local/share/caelestia-custom"
+DST="$HOME/.config/quickshell/caelestia"
+STAMP="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia-overlay.stamp"
+
+notif() { notify-send -a "Caelestia" -i preferences-desktop-theme "$@" 2>/dev/null || true; }
+
+[ -d "$SRC" ] || exit 0
+mkdir -p "$(dirname "$STAMP")"
+
+if [ "${1:-}" = --hapus ] || [ ! -d "$CUSTOM" ] || [ -z "$(find "$CUSTOM" -type f -print -quit)" ]; then
+    rm -rf "$DST" "$STAMP"
+    exit 0
+fi
+
+stamp="$(pacman -Q caelestia-shell 2>/dev/null) $(cd "$CUSTOM" && find . -type f -exec md5sum {} + | sort | md5sum)"
+if [ "${1:-}" != --paksa ] && [ -d "$DST" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "$stamp" ]; then
+    exit 0
+fi
+
+# Pastikan komponen yang dipakai lockscreen kustom masih kompatibel setelah update.
+# Jika tidak, pakai lockscreen asli agar layar kunci tidak pernah rusak.
+compatible() {
+    local L="$SRC/modules/lock"
+    grep -q 'required property real centerScale' "$L/center/Clock.qml" &&
+    grep -q 'required property int centerWidth' "$L/center/ProfilePic.qml" &&
+    grep -q 'required property real centerScale' "$L/center/PasswordInput.qml" &&
+    grep -q 'required property int centerWidth' "$L/center/PasswordInput.qml" &&
+    grep -q 'required property var lock' "$L/center/PasswordInput.qml" &&
+    grep -q 'required property Pam pam' "$L/center/StateMessage.qml" &&
+    grep -q 'required property var lock' "$L/Content.qml" &&
+    grep -q 'Content {' "$L/LockSurface.qml"
+} 2>/dev/null
+
+if [ -f "$CUSTOM/modules/lock/Content.qml" ] && ! compatible; then
+    rm -rf "$DST"
+    echo "$stamp" > "$STAMP"
+    notif "Lockscreen kustom dinonaktifkan" "caelestia-shell berubah dan belum kompatibel. Memakai lockscreen bawaan."
+    exit 0
+fi
+
+# Folder yang perlu dibuat nyata = semua folder induk dari file kustom
+declare -A realdirs=([.]=1)
+while IFS= read -r f; do
+    d=$(dirname "$f")
+    while [ "$d" != . ]; do realdirs[$d]=1; d=$(dirname "$d"); done
+done < <(cd "$CUSTOM" && find . -type f -printf '%P\n')
+
+tmp="$DST.tmp.$$"
+rm -rf "$tmp"
+mkdir -p "$tmp"
+
+for rel in "${!realdirs[@]}"; do
+    mkdir -p "$tmp/$rel"
+    for e in "$SRC/$rel"/* "$SRC/$rel"/.[!.]*; do
+        [ -e "$e" ] || continue
+        name=$(basename "$e")
+        sub="${rel#.}"; sub="${sub#/}"; sub="${sub:+$sub/}$name"
+        [ -n "${realdirs[$sub]:-}" ] && continue
+        [ -e "$CUSTOM/$sub" ] && continue
+        ln -s "$SRC/$sub" "$tmp/$sub"
+    done
+done
+
+(cd "$CUSTOM" && find . -type f -printf '%P\n') | while IFS= read -r f; do
+    mkdir -p "$(dirname "$tmp/$f")"
+    cp -f "$CUSTOM/$f" "$tmp/$f"
+done
+
+rm -rf "$DST"
+mv "$tmp" "$DST"
+echo "$stamp" > "$STAMP"

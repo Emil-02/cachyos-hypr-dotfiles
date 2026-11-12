@@ -1,0 +1,5 @@
+# Hyprland border/shadow colours follow the wallpaper palette.
+[theme.templates.user.hyprland-luxury]
+input_path  = "$XDG_CONFIG_HOME/noctalia/templates/hyprland-luxury.lua"
+output_path = "$XDG_CONFIG_HOME/hypr/config/theme.lua"
+post_hook   = "hyprctl reload"

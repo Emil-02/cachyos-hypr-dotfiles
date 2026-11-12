@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Switches Noctalia between light and dark mode depending on wallpaper brightness.
+# Called by the "wallpaper-mode" Noctalia template whenever the palette is re-rendered.
+THRESHOLD="${AUTO_MODE_THRESHOLD:-135}"   # average luminance 0-255; above = light
+wp="$(noctalia msg wallpaper-get 2>/dev/null)"
+[ -f "$wp" ] || exit 0
+luma=$(ffmpeg -v error -i "$wp" -frames:v 1 -vf "scale=16:16:flags=area,format=gray" -f rawvideo - 2>/dev/null \
+  | od -An -tu1 -v | tr -s ' ' '\n' | awk 'NF{s+=$1;n++} END{if(n) printf "%d", s/n}')
+[ -n "$luma" ] || exit 0
+if (( luma > THRESHOLD )); then want=light; else want=dark; fi
+[ "$(noctalia msg theme-mode-get 2>/dev/null)" = "$want" ] && exit 0
+# Detach so the theme change happens after this hook has returned.
+setsid -f bash -c "sleep 1; noctalia msg theme-mode-set $want >/dev/null" </dev/null >/dev/null 2>&1

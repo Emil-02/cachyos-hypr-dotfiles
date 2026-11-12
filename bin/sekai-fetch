@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# fastfetch untuk mode SekaiPop: logonya potongan wallpaper yang sedang dipakai (ikut berganti).
+CFG="$HOME/.config/fastfetch/sekaipop.jsonc"
+CACHE="$HOME/.cache/sekai-fetch"
+WP=$(cat "$HOME/.local/state/sekaipop/wallpaper" 2>/dev/null)
+ACC=$(sed -n 's/^cursor *#\{0,1\}\([0-9a-fA-F]\{6\}\).*/\1/p' "$HOME/.config/kitty/sekaipop-colors.conf" 2>/dev/null | head -1)
+
+if [ -z "$WP" ] || [ ! -f "$WP" ] || [ "$TERM" != "xterm-kitty" ]; then
+    exec fastfetch -c "$CFG" --logo-type small
+fi
+
+key=$(printf '%s|%s|%s' "$WP" "$(stat -c %Y "$WP")" "$ACC" | md5sum | cut -c1-16)
+LOGO="$CACHE/logo-$key.png"
+if [ ! -f "$LOGO" ]; then
+    mkdir -p "$CACHE"
+    rm -f "$CACHE"/logo-*.png
+    python3 - "$WP" "$LOGO" "${ACC:-7ad0d8}" <<'PY' 2>/dev/null
+import subprocess, sys, tempfile, os
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+src, out, acc = sys.argv[1], sys.argv[2], sys.argv[3]
+if src.lower().endswith((".mp4", ".webm", ".mkv", ".mov", ".avi")):
+    tmp = tempfile.mktemp(suffix=".png")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-frames:v", "1", tmp], check=True)
+    im = Image.open(tmp).convert("RGB"); os.remove(tmp)
+else:
+    im = Image.open(src).convert("RGB")
+im.thumbnail((1600, 1600))
+w, h = im.size
+side = min(w, h)
+# the square with the most detail (usually the character, not the empty background)
+g = np.asarray(im.convert("L").resize((160, int(160 * h / w))), dtype=float)
+e = np.abs(np.diff(g, axis=1))[:-1, :] + np.abs(np.diff(g, axis=0))[:, :-1]
+cols = e.sum(axis=0)
+win = max(1, int(len(cols) * side / w))
+best = max(range(0, len(cols) - win + 1), key=lambda i: cols[i:i + win].sum()) if len(cols) > win else 0
+x0 = int(best * w / len(cols))
+im = im.crop((x0, 0, x0 + side, side)).resize((480, 480), Image.LANCZOS)
+S, R, B = 480, 64, 8
+color = tuple(int(acc[i:i + 2], 16) for i in (0, 2, 4))
+canvas = Image.new("RGBA", (S, S), color + (0,))
+mask = Image.new("L", (S, S), 0)
+ImageDraw.Draw(mask).rounded_rectangle((0, 0, S - 1, S - 1), R, fill=255)
+canvas.paste(Image.new("RGBA", (S, S), color + (255,)), (0, 0), mask)
+inner = Image.new("L", (S, S), 0)
+ImageDraw.Draw(inner).rounded_rectangle((B, B, S - 1 - B, S - 1 - B), R - B, fill=255)
+canvas.paste(im.convert("RGBA"), (0, 0), inner)
+canvas.save(out)
+PY
+fi
+[ -f "$LOGO" ] || exec fastfetch -c "$CFG" --logo-type small
+exec fastfetch -c "$CFG" --logo-type kitty --logo "$LOGO"

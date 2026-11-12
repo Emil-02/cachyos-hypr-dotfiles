@@ -1,0 +1,5 @@
+# Light/dark mode follows wallpaper brightness (bright wallpaper → light theme).
+[theme.templates.user.wallpaper-mode]
+input_path  = "$XDG_CONFIG_HOME/noctalia/templates/wallpaper-mode.txt"
+output_path = "$XDG_CACHE_HOME/noctalia/wallpaper-mode.txt"
+post_hook   = "$HOME/.local/bin/noctalia-auto-mode"

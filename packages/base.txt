@@ -1,0 +1,36 @@
+# Paket untuk mode Noctalia + skrip ganti-mode. Dipasang oleh: ./install.sh --deps
+# Di CachyOS semuanya ada di repo resmi; di Arch biasa sebagian dari AUR (paru/yay).
+hyprland
+hyprlock
+noctalia
+fuzzel
+foot
+kitty
+fish
+starship
+fastfetch
+btop
+micro
+cava
+rsync
+jq
+zstd
+wl-clipboard
+cliphist
+libnotify
+imagemagick
+ffmpeg
+mpvpaper
+matugen
+qt5ct
+qt6ct
+glib2
+wf-recorder
+grim
+slurp
+brightnessctl
+playerctl
+wireplumber
+dolphin
+bc
+python

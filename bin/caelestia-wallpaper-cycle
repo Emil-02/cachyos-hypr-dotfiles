@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Ganti wallpaper Caelestia ke berikutnya/sebelumnya dalam folder koleksi.
+# Pemakaian: caelestia-wallpaper-cycle next|prev [DIR]
+set -euo pipefail
+
+arah="${1:-next}"
+dir="${2:-$HOME/Gambar/Wallpaper/Berkelas}"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
+
+mapfile -t files < <(find "$dir" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.gif' \) | sort)
+(( ${#files[@]} )) || exit 1
+
+current="$(cat "$state" 2>/dev/null || true)"
+idx=-1
+for i in "${!files[@]}"; do
+    [[ "${files[$i]}" == "$current" ]] && { idx=$i; break; }
+done
+
+n=${#files[@]}
+if [[ "$arah" == prev ]]; then
+    (( idx < 0 )) && idx=0
+    next=$(( (idx - 1 + n) % n ))
+else
+    next=$(( (idx + 1) % n ))
+fi
+
+exec caelestia wallpaper -f "${files[$next]}"

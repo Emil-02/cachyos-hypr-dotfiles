@@ -1,0 +1,60 @@
+/* sekaipop: written by scripts/theming/system-theme.sh through matugen. Do not edit,
+   it is rewritten whenever the shell theme or wallpaper changes.
+   Imported from ~/.config/gtk-3.0/gtk.css and ~/.config/gtk-4.0/gtk.css. */
+
+/* libadwaita / adw-gtk3 named colours */
+@define-color accent_color #006878;
+@define-color accent_bg_color #006878;
+@define-color accent_fg_color #ffffff;
+
+@define-color destructive_color #ba1a1a;
+@define-color destructive_bg_color #ba1a1a;
+@define-color destructive_fg_color #ffffff;
+@define-color error_color #ba1a1a;
+@define-color error_bg_color #ba1a1a;
+@define-color error_fg_color #ffffff;
+
+@define-color window_bg_color #f5fafc;
+@define-color window_fg_color #171d1e;
+@define-color view_bg_color #ffffff;
+@define-color view_fg_color #171d1e;
+
+@define-color headerbar_bg_color #e9eff1;
+@define-color headerbar_fg_color #171d1e;
+@define-color headerbar_border_color #bfc8cb;
+@define-color headerbar_backdrop_color #f5fafc;
+
+@define-color sidebar_bg_color #eff4f6;
+@define-color sidebar_fg_color #171d1e;
+@define-color sidebar_backdrop_color #f5fafc;
+
+@define-color card_bg_color #e4e9eb;
+@define-color card_fg_color #171d1e;
+@define-color dialog_bg_color #e4e9eb;
+@define-color dialog_fg_color #171d1e;
+@define-color popover_bg_color #e4e9eb;
+@define-color popover_fg_color #171d1e;
+@define-color thumbnail_bg_color #e4e9eb;
+@define-color thumbnail_fg_color #171d1e;
+@define-color overview_bg_color #f5fafc;
+@define-color overview_fg_color #171d1e;
+
+/* plain GTK3 themes (stock Adwaita etc.) read these older names */
+@define-color theme_bg_color #f5fafc;
+@define-color theme_fg_color #171d1e;
+@define-color theme_base_color #ffffff;
+@define-color theme_text_color #171d1e;
+@define-color theme_selected_bg_color #006878;
+@define-color theme_selected_fg_color #ffffff;
+@define-color theme_unfocused_bg_color #f5fafc;
+@define-color theme_unfocused_fg_color #3f484b;
+@define-color theme_unfocused_base_color #ffffff;
+@define-color theme_unfocused_text_color #171d1e;
+@define-color theme_unfocused_selected_bg_color #cde7ee;
+@define-color theme_unfocused_selected_fg_color #051f24;
+@define-color insensitive_bg_color #e9eff1;
+@define-color insensitive_fg_color #6f797b;
+@define-color borders #bfc8cb;
+@define-color unfocused_borders #bfc8cb;
+@define-color link_color #006878;
+@define-color visited_link_color #555d7e;

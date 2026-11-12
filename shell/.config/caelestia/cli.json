@@ -1,0 +1,11 @@
+{
+    "theme": {
+        "enableChromium": false,
+        "enableHtop": false,
+        "enableCava": false,
+        "enableDiscord": false,
+        "enableSpicetify": false,
+        "enableZed": false,
+        "enableWarp": false
+    }
+}

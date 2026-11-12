@@ -1,0 +1,10 @@
+# Sorotan item yang lembut (secondary_container) untuk aplikasi KDE/Qt seperti Dolphin.
+# Menggantikan template bawaan "kcolorscheme" dan "qt".
+[theme.templates.user.kcolorscheme-lembut]
+input_path  = "$XDG_CONFIG_HOME/noctalia/templates/kcolorscheme-lembut.colors"
+output_path = "$XDG_DATA_HOME/color-schemes/noctalia.colors"
+post_action = "kde-color-scheme"
+
+[theme.templates.user.qt-lembut]
+input_path  = "$XDG_CONFIG_HOME/noctalia/templates/qtct-lembut.conf"
+output_path = ["$XDG_CONFIG_HOME/qt5ct/colors/noctalia.conf", "$XDG_CONFIG_HOME/qt6ct/colors/noctalia.conf"]

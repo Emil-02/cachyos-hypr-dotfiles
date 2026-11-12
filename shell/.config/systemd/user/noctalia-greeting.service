@@ -1,0 +1,6 @@
+[Unit]
+Description=Update Noctalia bar greeting for the time of day
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/noctalia-greeting

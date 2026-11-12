@@ -1,0 +1,210 @@
+# Noctalia — Caelestia-inspired layout
+# Backup of the previous layout: ~/Backup-Tema-Desktop/
+
+[accessibility]
+ui_scale = 1.0
+
+# ── Bottom bar (Caelestia-inspired) ──────────────────────────────────
+[bar.default]
+position = "bottom"
+thickness = 32
+background_opacity = 0.92
+compositor_blur = true
+shadow = false
+border_width = 0.0
+radius = 14
+concave_edge_corners = true
+margin_edge = 0
+margin_ends = 0
+padding = 10
+widget_spacing = 10
+scale = 0.92
+font_weight = 500
+capsule = false
+hover_highlight = true
+start = ["control-center", "workspaces", "greeting"]
+center = ["taskbar"]
+end = ["tray", "notifications", "clock", "network", "bluetooth", "volume", "battery", "session"]
+
+[widget.control-center]
+custom_image = "/usr/share/icons/cachyos.svg"
+custom_image_colorize = true
+color = "primary"
+
+[widget.workspaces]
+style = "focus_hint"
+capsule = true
+capsule_fill = "surface_container_high"
+
+# Text and icon are refreshed every few minutes by ~/.local/bin/noctalia-greeting
+[widget.greeting]
+type = "custom_button"
+glyph = "moon-stars"
+label = "Selamat Malam, Amboyy!"
+color = "on_surface_variant"
+interactive = false
+
+[widget.taskbar]
+pinned = ["firefox", "code-oss", "org.kde.dolphin", "brave-browser", "kitty", "wps-office-wps", "antigravity-ide", "vlc"]
+show_active_indicator = true
+
+[widget.tray]
+capsule = false
+
+[widget.notifications]
+color = "on_surface"
+
+[widget.clock]
+format = "{:%H:%M}"
+tooltip_format = "{:%A, %-d %B %Y}"
+color = "on_surface"
+
+[widget.network]
+color = "on_surface"
+
+[widget.bluetooth]
+color = "on_surface"
+
+[widget.volume]
+color = "on_surface"
+
+[widget.battery]
+color = "on_surface"
+
+[widget.session]
+color = "error"
+
+# ── Shell ─────────────────────────────────────────────────────────────
+[shell]
+font_family = "Inter Variable"
+clipboard_image_action_command = "swash --stdin --name \"swash-$(date +'%Y-%m-%d_%H:%M:%S').png\""
+launch_apps_as_systemd_services = true
+polkit_agent = true
+settings_show_advanced = true
+
+    [shell.greeter_sync]
+    auto_sync = false
+
+[shell.panel]
+transparency_mode = "soft"
+launcher_placement = "attached"
+launcher_position = "auto"
+open_near_click_launcher = false
+wallpaper_placement = "attached"
+control_center_placement = "floating"
+control_center_position = "top_center"
+session_placement = "floating"
+session_position = "center_right"
+clipboard_placement = "attached"
+
+[shell.screen_corners]
+enabled = true
+size = 18
+
+[shell.shadow]
+direction = "down"
+alpha = 0.45
+
+[shell.animation]
+enabled = true
+speed = 1.0
+
+# Launcher rises from the bottom bar (SUPER + Space)
+[shell.launcher]
+layout = "full"
+width = 620
+search_position = "bottom"
+default_view = "all"
+show_icons = true
+app_grid = false
+sort_by_usage = true
+show_session_button = true
+
+    [shell.screenshot]
+    copy_to_clipboard = false
+    pipe_command = "swash --stdin --name \"swash-$(date +'%Y-%m-%d_%H:%M:%S').png\""
+    pipe_to_command = true
+    save_to_file = false
+
+    [[shell.session.actions]]
+    action = "lock"
+    countdown_seconds = 0.0
+    enabled = true
+    shortcut = "1"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "logout"
+    countdown_seconds = 0.0
+    enabled = true
+    shortcut = "2"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "lock_and_suspend"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "3"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "reboot"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "4"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "shutdown"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "5"
+    variant = "destructive"
+
+[system.monitor]
+gpu_poll_seconds = 2
+
+[theme]
+# mode is switched automatically by ~/.local/bin/noctalia-auto-mode (bright wallpaper → light)
+mode = "dark"
+source = "wallpaper"
+wallpaper_scheme = "m3-content"
+
+# ── Dock (disabled: apps live in the bar taskbar, like the video) ───
+[dock]
+enabled = false
+position = "bottom"
+auto_hide = false
+icon_size = 40
+magnification = true
+magnification_scale = 1.6
+active_scale = 1.0
+inactive_scale = 1.0
+active_opacity = 1.0
+inactive_opacity = 1.0
+show_dots = true
+show_running = true
+show_instance_count = false
+main_axis_padding = 8
+cross_axis_padding = 6
+item_spacing = 6
+margin_edge = 6
+margin_ends = 0
+radius = 18
+concave_edge_corners = false
+background_opacity = 0.42
+compositor_blur = true
+border = "outline_variant"
+border_width = 1.0
+shadow = true
+launcher_position = "end"
+launcher_icon = "layout-grid"
+pinned = [
+  "firefox",
+  "code-oss",
+  "org.kde.dolphin",
+  "wps-office-wps",
+  "antigravity-ide",
+  "kitty",
+  "vlc"
+]

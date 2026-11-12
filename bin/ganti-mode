@@ -1,0 +1,295 @@
+#!/usr/bin/env bash
+# Ganti tampilan desktop antara beberapa mode:
+#   noctalia  = Kerja  (ringan)
+#   caelestia = Santai
+#   end4      = Mewah  (end-4 illogical-impulse)
+#   sekaipop  = Imut   (SekaiPop)
+# Pemakaian: ganti-mode [menu|noctalia|caelestia|end4|toggle|status|rekam-<mode>]
+# Shell mode lain dimatikan sepenuhnya, jadi tidak memakan RAM.
+set -uo pipefail
+
+STATE_DIR="$HOME/.local/state/mode-tampilan"
+TREES="${MODE_TREES:-$HOME/.local/share/mode-tampilan}"
+MODES=(noctalia caelestia end4 sekaipop)
+mkdir -p "$STATE_DIR"
+
+# File/folder yang berbeda antar mode (relatif ke $HOME)
+FILES=(
+  .config/hypr
+  .config/fish
+  .config/starship.toml
+  .config/foot
+  .config/btop
+  .config/fastfetch
+  .config/micro
+  .config/Thunar
+  .config/kitty
+  .config/fuzzel
+  .config/fontconfig
+  .config/kdeglobals
+  .config/Kvantum
+  .config/matugen
+  .config/wlogout
+  .config/mpv
+  .config/xdg-desktop-portal
+  .config/code-flags.conf
+  .config/chrome-flags.conf
+  .config/thorium-flags.conf
+  .config/darklyrc
+  .config/dolphinrc
+  .config/konsolerc
+  .config/kde-material-you-colors
+  .config/zshrc.d
+  .config/gtk-3.0/gtk.css
+  .config/gtk-4.0/gtk.css
+  .config/gtk-3.0/settings.ini
+  .config/gtk-4.0/settings.ini
+  .config/gtk-3.0/sekaipop-colors.css
+  .config/gtk-4.0/sekaipop-colors.css
+  .config/qt5ct
+  .config/qt6ct
+  .config/kcminputrc
+)
+GSET_KEYS=(gtk-theme icon-theme cursor-theme cursor-size font-name color-scheme)
+
+label() {
+  case "$1" in
+    noctalia)  echo "Kerja (Noctalia)" ;;
+    caelestia) echo "Santai (Caelestia)" ;;
+    end4)      echo "Mewah (end-4 illogical-impulse)" ;;
+    sekaipop)  echo "Imut (SekaiPop)" ;;
+  esac
+}
+notif() { (sleep 2; timeout 5 notify-send -a "Mode Tampilan" -i preferences-desktop-theme "$@" >/dev/null 2>&1) & disown; }
+mode_now() { cat "$STATE_DIR/mode" 2>/dev/null || echo noctalia; }
+
+# Penanda hyprland.lua tiap mode (cegah menyimpan config mode lain)
+hypr_marker() {
+  case "$1" in
+    noctalia)  echo 'require("config.' ;;
+    caelestia) echo '.config/caelestia/?.lua' ;;
+    end4)      echo 'require("hyprland.lib")' ;;
+    sekaipop)  echo 'SekaiPop: Hyprland configuration' ;;
+  esac
+}
+hypr_matches() { grep -qF "$(hypr_marker "$2")" "$1/.config/hypr/hyprland.lua" 2>/dev/null; }
+
+mode_ready() {
+  local m="$1"
+  [ -f "$TREES/$m/.config/hypr/hyprland.lua" ] || return 1
+  case "$m" in
+    caelestia) command -v caelestia >/dev/null ;;
+    end4)      [ -f "$HOME/.config/quickshell/ii/shell.qml" ] && command -v hypridle >/dev/null \
+                 && [ -x "$HOME/.local/state/quickshell/.venv/bin/python" ] ;;
+    sekaipop)  [ -f "$HOME/.config/quickshell/sekaipop/shell.qml" ] && command -v easyeffects >/dev/null \
+                 && command -v hypridle >/dev/null ;;
+    *)         return 0 ;;
+  esac
+}
+
+save_tree() {
+  local m="$1" t="$TREES/$1" p
+  mkdir -p "$t"
+  for p in "${FILES[@]}"; do
+    if [ "$p" = .config/hypr ] && ! hypr_matches "$HOME" "$m"; then
+      continue
+    fi
+    rm -rf "${t:?}/$p"
+    if [ -e "$HOME/$p" ] || [ -L "$HOME/$p" ]; then
+      mkdir -p "$(dirname "$t/$p")"
+      cp -a "$HOME/$p" "$t/$p"
+    fi
+  done
+  : > "$t/gsettings.txt"
+  for k in "${GSET_KEYS[@]}"; do
+    echo "$k $(gsettings get org.gnome.desktop.interface "$k")" >> "$t/gsettings.txt"
+  done
+}
+
+load_tree() {
+  local t="$TREES/$1" p
+  for p in "${FILES[@]}"; do
+    # Folder hypr ditukar sekaligus agar Hyprland tidak memuat config setengah jadi
+    if [ "$p" = .config/hypr ] && [ -d "$t/$p" ]; then
+      local tmp="$HOME/.config/.hypr-baru.$$" old="$HOME/.config/.hypr-lama.$$"
+      rm -rf "$tmp" "$old"
+      cp -a "$t/$p" "$tmp"
+      [ -e "$HOME/$p" ] && mv "$HOME/$p" "$old"
+      mv "$tmp" "$HOME/$p"
+      rm -rf "$old"
+      continue
+    fi
+    if [ -d "$t/$p" ] && [ ! -L "$t/$p" ]; then
+      if [ -e "$HOME/$p" ] && { [ ! -d "$HOME/$p" ] || [ -L "$HOME/$p" ]; }; then rm -f "${HOME:?}/$p"; fi
+      mkdir -p "$HOME/$p"
+      rsync -a --delete "$t/$p/" "$HOME/$p/"
+    elif [ -e "$t/$p" ] || [ -L "$t/$p" ]; then
+      rm -rf "${HOME:?}/$p"
+      mkdir -p "$(dirname "$HOME/$p")"
+      cp -a "$t/$p" "$HOME/$p"
+    elif [ "$p" != .config/hypr ]; then
+      rm -rf "${HOME:?}/$p"
+    fi
+  done
+  if [ -f "$t/gsettings.txt" ]; then
+    while read -r k v; do
+      gsettings set org.gnome.desktop.interface "$k" "$v" 2>/dev/null || true
+    done < "$t/gsettings.txt"
+  fi
+}
+
+kill_pids() { local p; for p in "$@"; do kill "$p" 2>/dev/null || true; done; }
+hypr_exec() { hyprctl dispatch "hl.dsp.exec_cmd(\"$1\")" >/dev/null 2>&1; }
+caelestia_pids() { pgrep -f '(^|/)(qs|quickshell) .*caelestia|caelestia shell -d' 2>/dev/null; }
+ii_pids() { pgrep -f '(^|/)(qs|quickshell) (-c ii( |$)|-p [^ ]*/quickshell/ii/)' 2>/dev/null; }
+lyrics_pids() { pgrep -f '^(/usr/bin/)?(qs|quickshell) -c ii-lyrics( -d)?$' 2>/dev/null; }
+sekai_pids() { pgrep -f '^(/usr/bin/)?(qs|quickshell) (-c sekaipop|-p [^ ]*/quickshell/sekaipop)( |$)' 2>/dev/null; }
+ii_main_pids() { pgrep -f '^(/usr/bin/)?(qs|quickshell) -c ii( -d)?$' 2>/dev/null; }
+
+stop_noctalia() {
+  systemctl --user stop noctalia-greeting.timer 2>/dev/null || true
+  kill_pids $(pgrep -x noctalia)
+}
+stop_caelestia() {
+  if caelestia_pids >/dev/null && command -v caelestia >/dev/null; then
+    caelestia shell -k >/dev/null 2>&1; sleep 0.5
+  fi
+  kill_pids $(caelestia_pids)
+  kill_pids $(pgrep -f '^/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1')
+  kill_pids $(pgrep -f '^wl-paste --type (text|image) --watch cliphist store')
+  kill_pids $(pgrep -x mpris-proxy)
+  kill_pids $(pgrep -x gammastep)
+  kill_pids $(pgrep -f '^/usr/lib/geoclue-2.0/demos/agent')
+}
+stop_end4() {
+  kill_pids $(ii_pids)
+  kill_pids $(lyrics_pids)
+  kill_pids $(pgrep -f 'quickshell/ii-lyrics/fetch_lyrics.py')
+  kill_pids $(pgrep -x hypridle)
+  kill_pids $(pgrep -x hyprsunset)
+  kill_pids $(pgrep -f '^wl-paste --type (text|image) --watch bash -c')
+  kill_pids $(pgrep -f 'start_geoclue_agent.sh')
+  kill_pids $(pgrep -f '^/usr/lib/geoclue-2.0/demos/agent')
+  systemctl --user stop ydotool 2>/dev/null || true
+}
+
+stop_sekaipop() {
+  kill_pids $(sekai_pids)
+  kill_pids $(pgrep -f "sekaipop-mpvpaper")
+  kill_pids $(pgrep -x easyeffects)
+  kill_pids $(pgrep -x hypridle)
+  kill_pids $(pgrep -x hyprsunset)
+  "$HOME/.local/bin/sekai-avatar" stop >/dev/null 2>&1 || true
+}
+
+start_noctalia() {
+  hyprctl setcursor macOS 24 >/dev/null 2>&1
+  pgrep -x noctalia >/dev/null || hypr_exec "noctalia"
+  systemctl --user start noctalia-greeting.timer 2>/dev/null || true
+  for _ in $(seq 20); do noctalia msg theme-mode-get >/dev/null 2>&1 && break; sleep 0.3; done
+  noctalia msg templates-apply >/dev/null 2>&1 || true
+}
+start_caelestia() {
+  hyprctl setcursor macOS 24 >/dev/null 2>&1
+  pgrep -f '^/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1' >/dev/null || \
+    hypr_exec "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+  pgrep -f '^wl-paste --type text --watch cliphist store' >/dev/null || \
+    hypr_exec "wl-paste --type text --watch cliphist store"
+  pgrep -f '^wl-paste --type image --watch cliphist store' >/dev/null || \
+    hypr_exec "wl-paste --type image --watch cliphist store"
+  caelestia_pids >/dev/null || hypr_exec "caelestia shell -d"
+}
+start_end4() {
+  hyprctl setcursor Bibata-Modern-Classic 24 >/dev/null 2>&1
+  ii_main_pids >/dev/null || hypr_exec "qs -c ii"
+  lyrics_pids >/dev/null || { sleep 1; hypr_exec "qs -c ii-lyrics"; }
+  pgrep -x hypridle >/dev/null || hypr_exec "hypridle"
+  pgrep -f 'start_geoclue_agent.sh' >/dev/null || \
+    hypr_exec "$HOME/.config/hypr/hyprland/scripts/start_geoclue_agent.sh"
+  if ! pgrep -f '^wl-paste --type text --watch bash -c' >/dev/null; then
+    hypr_exec "wl-paste --type text --watch bash -c 'cliphist store && qs -c ii ipc call cliphistService update'"
+    hypr_exec "wl-paste --type image --watch bash -c 'cliphist store && qs -c ii ipc call cliphistService update'"
+  fi
+}
+
+start_sekaipop() {
+  hyprctl setcursor Bibata-Modern-Classic 24 >/dev/null 2>&1
+  sekai_pids >/dev/null || hypr_exec "qs -c sekaipop"
+  pgrep -x hypridle >/dev/null || hypr_exec "hypridle"
+  pgrep -x easyeffects >/dev/null || hypr_exec "easyeffects --hide-window --service-mode"
+  [ -x "$HOME/.local/bin/sekai-avatar" ] && hypr_exec "sleep 3 && $HOME/.local/bin/sekai-avatar start"
+}
+
+switch_to() {
+  local target="$1" cur m
+  cur=$(mode_now)
+  if ! mode_ready "$target"; then
+    notif "Mode $(label "$target") belum terpasang"; echo "Mode $target belum siap."; exit 1
+  fi
+
+  if [ "$cur" != "$target" ]; then
+    save_tree "$cur"
+    load_tree "$target"
+    echo "$target" > "$STATE_DIR/mode"
+  fi
+
+  for m in "${MODES[@]}"; do
+    [ "$m" != "$target" ] && "stop_$m"
+  done
+  hyprctl reload >/dev/null 2>&1
+  sleep 0.5
+  "start_$target"
+  notif "Mode $(label "$target")" "Tampilan lain dimatikan"
+  echo "Mode sekarang: $target"
+}
+
+pick_menu() {
+  local cur m choice lines=()
+  cur=$(mode_now)
+  for m in "${MODES[@]}"; do
+    mode_ready "$m" || continue
+    if [ "$m" = "$cur" ]; then lines+=("● $(label "$m")"); else lines+=("   $(label "$m")"); fi
+  done
+  choice=$(printf '%s\n' "${lines[@]}" | fuzzel --dmenu --prompt "Tampilan  " --lines "${#lines[@]}" --width 34 2>/dev/null) || exit 0
+  for m in "${MODES[@]}"; do
+    case "$choice" in *"$(label "$m")"*) echo "$m"; return ;; esac
+  done
+}
+
+next_mode() {
+  local cur i n=${#MODES[@]}
+  cur=$(mode_now)
+  for i in "${!MODES[@]}"; do
+    if [ "${MODES[$i]}" = "$cur" ]; then
+      local j
+      for j in $(seq 1 "$n"); do
+        local m="${MODES[$(((i + j) % n))]}"
+        mode_ready "$m" && { echo "$m"; return; }
+      done
+    fi
+  done
+  echo noctalia
+}
+
+exec 9>"$STATE_DIR/.lock"
+flock -n 9 || { echo "Sedang berganti mode..."; exit 0; }
+
+case "${1:-menu}" in
+  noctalia|kerja)          switch_to noctalia ;;
+  caelestia|santai)        switch_to caelestia ;;
+  end4|ii|mewah)           switch_to end4 ;;
+  sekaipop|sekai|imut)     switch_to sekaipop ;;
+  toggle|berikut)          switch_to "$(next_mode)" ;;
+  menu)                    m=$(pick_menu); [ -n "${m:-}" ] && [ "$m" != "$(mode_now)" ] && switch_to "$m" ;;
+  status)
+    echo "Mode: $(mode_now) — $(label "$(mode_now)")"
+    pgrep -x noctalia >/dev/null && echo "noctalia: jalan"
+    caelestia_pids >/dev/null && echo "caelestia: jalan"
+    ii_main_pids >/dev/null && echo "end4: jalan"
+    lyrics_pids >/dev/null && echo "lirik: jalan"
+    sekai_pids >/dev/null && echo "sekaipop: jalan"
+    true ;;
+  rekam-noctalia|rekam-caelestia|rekam-end4|rekam-sekaipop)
+    m="${1#rekam-}"; save_tree "$m"; echo "$m" > "$STATE_DIR/mode"; echo "Mode $m direkam." ;;
+  *) echo "Pemakaian: ganti-mode [menu|noctalia|caelestia|end4|sekaipop|toggle|status]"; exit 1 ;;
+esac

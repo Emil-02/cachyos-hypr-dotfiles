@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Simpan seluruh tampilan desktop saat ini sebagai "profil" yang bisa dipulihkan.
+# Pemakaian: simpan-tampilan <nama-profil> [--ringan]
+#   --ringan : hanya konfigurasi (tanpa ikon, kursor, font, wallpaper)
+# Hasil: ~/Backup-Tema-Desktop/profil-<nama>/  (berisi pulihkan.sh)
+set -euo pipefail
+
+NAMA="${1:-}"; MODE="${2:-}"
+[ -z "$NAMA" ] && { echo "Pemakaian: simpan-tampilan <nama-profil> [--ringan]"; exit 1; }
+NAMA="${NAMA// /-}"
+DEST="$HOME/Backup-Tema-Desktop/profil-$NAMA"
+[ -e "$DEST" ] && DEST="$DEST-$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$DEST"
+cd "$HOME"
+
+CONFIG=(
+  .config/hypr .config/noctalia .local/state/noctalia/settings.toml
+  .config/caelestia .local/state/caelestia .config/quickshell
+  .config/gtk-3.0 .config/gtk-4.0 .config/qt5ct .config/qt6ct
+  .config/kdeglobals .config/xsettingsd .config/uwsm/env
+  ".config/Code - OSS/User/settings.json"
+  .config/kitty .config/alacritty .config/foot .config/ghostty .config/wezterm
+  .config/btop .config/cava .config/fish .config/starship.toml .config/fastfetch
+  .config/micro .config/Thunar .config/fuzzel .config/fontconfig .config/Kvantum .config/matugen
+  .config/wlogout .config/mpv .config/xdg-desktop-portal .config/code-flags.conf .config/chrome-flags.conf
+  .config/thorium-flags.conf .config/darklyrc .config/dolphinrc .config/konsolerc .config/kde-material-you-colors
+  .config/zshrc.d .config/illogical-impulse .config/quickshell .config/sekaipop .config/autostart .local/share/mode-tampilan .local/state/mode-tampilan .local/bin/ganti-mode .local/bin/wallpaper-acak .local/bin/buat-wallpaper-hidup .local/state/sekaipop .local/bin/sekai-fetch .cache/sekai-fetch .local/bin/proyek-on .local/bin/proyek-off .local/share/sekai-avatar .local/bin/sekai-avatar
+  .local/bin/noctalia-greeting .local/bin/noctalia-auto-mode .local/bin/simpan-tampilan
+  .local/share/caelestia-custom .local/bin/caelestia-overlay .local/bin/caelestia-wallpaper-cycle
+  .config/systemd/user/noctalia-greeting.service .config/systemd/user/noctalia-greeting.timer
+)
+ASET=(
+  .local/share/fonts/Inter
+  .local/share/icons/macOS .local/share/icons/macOS-White
+  .local/share/icons/WhiteSur .local/share/icons/WhiteSur-dark .local/share/icons/WhiteSur-light
+  Gambar/Wallpaper/Berkelas Gambar/Wallpaper/Clean
+)
+for v in Pictures/Wallpapers/hidup-*.mp4; do if [ -e "$v" ]; then ASET+=("$v"); fi; done
+for d in .vscode-oss/extensions/noctalia.*; do if [ -e "$d" ]; then ASET+=("$d"); fi; done
+
+LIST=()
+for p in "${CONFIG[@]}"; do if [ -e "$p" ]; then LIST+=("$p"); fi; done
+if [ "$MODE" != "--ringan" ]; then
+  for p in "${ASET[@]}"; do if [ -e "$p" ]; then LIST+=("$p"); fi; done
+fi
+printf '%s\n' "${LIST[@]}" > "$DEST/daftar-file.txt"
+
+echo "Menyimpan ${#LIST[@]} item ke $DEST ..."
+tar --zstd --exclude=.local/share/sekai-avatar/web/node_modules -cpf "$DEST/tampilan.tar.zst" "${LIST[@]}"
+
+# Pengaturan GNOME/GTK (tema, ikon, kursor, font)
+: > "$DEST/gsettings.txt"
+for k in gtk-theme icon-theme cursor-theme cursor-size font-name document-font-name \
+         monospace-font-name color-scheme; do
+  v=$(gsettings get org.gnome.desktop.interface "$k" 2>/dev/null) && \
+    echo "org.gnome.desktop.interface $k $v" >> "$DEST/gsettings.txt"
+done
+v=$(gsettings get org.gnome.desktop.wm.preferences button-layout 2>/dev/null) && \
+  echo "org.gnome.desktop.wm.preferences button-layout $v" >> "$DEST/gsettings.txt"
+
+# Shell yang sedang aktif (dipakai saat memulihkan)
+SHELL_AKTIF=none
+if pgrep -x noctalia >/dev/null; then SHELL_AKTIF=noctalia; fi
+if pgrep -f '(^|/)(qs|quickshell) .*caelestia|caelestia shell' >/dev/null; then SHELL_AKTIF=caelestia; fi
+echo "$SHELL_AKTIF" > "$DEST/shell.txt"
+date '+%F %T' > "$DEST/tanggal.txt"
+
+cat > "$DEST/pulihkan.sh" <<'EOF'
+#!/usr/bin/env bash
+# Memulihkan profil tampilan ini. Konfigurasi saat ini disimpan dulu otomatis.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$HOME"
+
+echo "1/5 Menyimpan tampilan saat ini (cadangan otomatis, ringan)..."
+"$HOME/.local/bin/simpan-tampilan" "otomatis-sebelum-pulih-$(date +%Y%m%d_%H%M%S)" --ringan >/dev/null 2>&1 || true
+
+echo "2/5 Menghapus konfigurasi shell/hypr yang bentrok..."
+for d in .config/hypr .config/noctalia .config/caelestia .config/quickshell; do
+  if [ -e "$d" ]; then rm -rf "$d"; fi
+done
+
+echo "3/5 Mengekstrak file profil..."
+tar --zstd -xpf "$DIR/tampilan.tar.zst" -C "$HOME"
+
+echo "4/5 Menerapkan gsettings..."
+while read -r schema key value; do
+  gsettings set "$schema" "$key" "$value" 2>/dev/null || true
+done < "$DIR/gsettings.txt"
+fc-cache -f >/dev/null 2>&1 || true
+systemctl --user daemon-reload 2>/dev/null || true
+[ -e "$HOME/.config/systemd/user/noctalia-greeting.timer" ] && \
+  systemctl --user enable --now noctalia-greeting.timer >/dev/null 2>&1 || true
+
+echo "5/5 Mengganti shell (yang lain dimatikan agar tidak memakan RAM)..."
+TARGET=$(cat "$DIR/shell.txt")
+stop_caelestia() { for p in $(pgrep -f '(^|/)(qs|quickshell) .*caelestia|caelestia shell' 2>/dev/null); do kill "$p" 2>/dev/null || true; done; }
+stop_noctalia()  { for p in $(pgrep -x noctalia 2>/dev/null); do kill "$p" 2>/dev/null || true; done; }
+case "$TARGET" in
+  noctalia)
+    stop_caelestia
+    pgrep -x noctalia >/dev/null || (setsid noctalia >/dev/null 2>&1 &)
+    sleep 2; noctalia msg config-reload >/dev/null 2>&1 || true ;;
+  caelestia)
+    stop_noctalia
+    pgrep -f '(^|/)(qs|quickshell) .*caelestia|caelestia shell' >/dev/null || (setsid caelestia shell -d >/dev/null 2>&1 &) ;;
+esac
+hyprctl reload >/dev/null 2>&1 || true
+echo "Selesai: profil $(basename "$DIR") dipulihkan (shell: $TARGET)."
+echo "Jika ada yang belum berubah (kursor/ikon), logout lalu login lagi."
+EOF
+chmod +x "$DEST/pulihkan.sh"
+
+echo "Selesai. Ukuran: $(du -sh "$DEST" | cut -f1)"
+echo "Untuk memulihkan: $DEST/pulihkan.sh"

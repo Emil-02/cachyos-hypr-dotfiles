@@ -1,0 +1,6 @@
+gtk-theme 'adw-gtk3-dark'
+icon-theme 'Papirus-Dark'
+cursor-theme 'macOS'
+cursor-size 24
+font-name 'Inter Variable 10.5'
+color-scheme 'prefer-dark'

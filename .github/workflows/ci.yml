@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -x *.sh scripts/*.sh lib/common.sh
+      - name: Tidak ada path pribadi atau token
+        run: |
+          ! (grep -rnE '/home/[a-z_][a-z0-9_-]*' bin modes shell | grep -v '/home/user')
+          ! grep -rnIE '(ghp_|gho_)[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|BEGIN [A-Z ]*PRIVATE KEY' .
+      - name: Uji install & uninstall di HOME sementara
+        run: |
+          export HOME="$(mktemp -d)"
+          mkdir -p "$HOME/.config/hypr"
+          echo lama > "$HOME/.config/hypr/hyprland.lua"
+          for m in noctalia caelestia end4 sekaipop; do
+            ./install.sh -y --mode "$m"
+            test "$(cat "$HOME/.local/state/mode-tampilan/mode")" = "$m"
+            ! grep -rl '@HOME@' "$HOME/.config" "$HOME/.local/bin"
+            echo y | ./uninstall.sh
+            test "$(cat "$HOME/.config/hypr/hyprland.lua")" = lama
+          done

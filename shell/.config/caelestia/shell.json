@@ -1,0 +1,178 @@
+{
+    "appearance": {
+        "rounding": {
+            "scale": 0.85
+        },
+        "spacing": {
+            "scale": 0.8
+        },
+        "padding": {
+            "scale": 0.75
+        },
+        "font": {
+            "scale": 0.85
+        },
+        "transparency": {
+            "enabled": true,
+            "base": 0.82,
+            "layers": 0.35
+        }
+    },
+    "general": {
+        "apps": {
+            "terminal": [
+                "foot"
+            ],
+            "audio": [
+                "pwvucontrol"
+            ],
+            "explorer": [
+                "thunar"
+            ]
+        },
+        "idle": {
+            "lockBeforeSleep": true,
+            "inhibitWhenAudio": true,
+            "timeouts": [
+                {
+                    "timeout": 600,
+                    "idleAction": "lock"
+                },
+                {
+                    "timeout": 900,
+                    "idleAction": "dpms off",
+                    "returnAction": "dpms on"
+                },
+                {
+                    "timeout": 1800,
+                    "idleAction": [
+                        "systemctl",
+                        "suspend"
+                    ]
+                }
+            ]
+        }
+    },
+    "background": {
+        "desktopClock": {
+            "enabled": true,
+            "scale": 0.6,
+            "position": "bottom-right",
+            "shadow": {
+                "enabled": true,
+                "opacity": 0.6,
+                "blur": 0.4
+            }
+        }
+    },
+    "border": {
+        "thickness": 3,
+        "rounding": 14
+    },
+    "bar": {
+        "workspaces": {
+            "shown": 4,
+            "displayType": "Shapes",
+            "label": "",
+            "occupiedLabel": "",
+            "activeLabel": "",
+            "showWindows": false,
+            "occupiedBg": true,
+            "activeIndicator": true,
+            "activeTrail": true
+        },
+        "clock": {
+            "background": true,
+            "showIcon": false
+        },
+        "entries": [
+            {
+                "id": "logo",
+                "enabled": true
+            },
+            {
+                "id": "workspaces",
+                "enabled": true
+            },
+            {
+                "id": "spacer",
+                "enabled": true
+            },
+            {
+                "id": "tray",
+                "enabled": true
+            },
+            {
+                "id": "clock",
+                "enabled": true
+            },
+            {
+                "id": "statusIcons",
+                "enabled": true
+            },
+            {
+                "id": "power",
+                "enabled": true
+            }
+        ],
+        "activeWindow": {
+            "compact": true,
+            "showOnHover": true
+        },
+        "tray": {
+            "background": true,
+            "compact": true
+        },
+        "statusIcons": [
+            {
+                "id": "lockStatus",
+                "enabled": true
+            },
+            {
+                "id": "audio",
+                "enabled": true
+            },
+            {
+                "id": "microphone",
+                "enabled": false
+            },
+            {
+                "id": "kbLayout",
+                "enabled": false
+            },
+            {
+                "id": "network",
+                "enabled": true
+            },
+            {
+                "id": "bluetooth",
+                "enabled": true
+            },
+            {
+                "id": "battery",
+                "enabled": true
+            }
+        ]
+    },
+    "paths": {
+        "wallpaperDir": "~/Gambar/Wallpaper/Berkelas"
+    },
+    "utilities": {
+        "toasts": {
+            "configLoaded": false
+        }
+    },
+    "launcher": {
+        "maxShown": 5
+    },
+    "lock": {
+        "useWallpaper": true,
+        "hideNotifs": true
+    },
+    "dashboard": {
+        "showDashboard": true,
+        "showMedia": true,
+        "showPerformance": true,
+        "showWeather": false
+    }
+}

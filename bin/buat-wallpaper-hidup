@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+"""buat-wallpaper-hidup: turn a still wallpaper into a seamless looping video wallpaper.
+
+  buat-wallpaper-hidup GAMBAR [EFEK] [KELUARAN.mp4]
+
+EFEK: kelopak (falling petals, default) | salju (snow) | bara (rising embers) | hujan (rain)
+      | kunang (fireflies) | kilau (sparkles only)
+The picture slowly "breathes" (zoom + drift) and particles float over it. Every motion is
+periodic over the loop length, so the video loops without a visible jump.
+"""
+import math
+import os
+import random
+import subprocess
+import sys
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+
+W, H = 1920, 1080
+FPS = 30
+SECONDS = int(os.environ.get("HIDUP_DETIK", "12"))
+N = FPS * SECONDS
+TAU = 2 * math.pi
+
+
+def accent_of(img):
+    hsv = np.array(img.resize((240, 135)).convert("HSV")).reshape(-1, 3).astype(float)
+    rgb = np.array(img.resize((240, 135)).convert("RGB")).reshape(-1, 3).astype(float)
+    m = (hsv[:, 1] > 90) & (hsv[:, 2] > 90)
+    if m.sum() < 60:
+        return (235, 238, 245)
+    bins = (hsv[m, 0] // 16).astype(int)
+    weight = hsv[m, 1] * hsv[m, 2]
+    best = np.bincount(bins, weights=weight, minlength=16).argmax()
+    sel = rgb[m][bins == best]
+    c = sel.mean(axis=0)
+    return tuple(int(v) for v in c)
+
+
+def mix(a, b, t):
+    return tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
+
+
+def soft_dot(r, color, blur):
+    s = int(r * 2 + blur * 4 + 4)
+    # transparent pixels carry the dot's own colour, so blurring/resampling never darkens the edge
+    im = Image.new("RGBA", (s, s), color + (0,))
+    d = ImageDraw.Draw(im)
+    c = s / 2
+    d.ellipse((c - r, c - r, c + r, c + r), fill=color + (255,))
+    if blur > 0:
+        im = im.filter(ImageFilter.GaussianBlur(blur))
+    return im
+
+
+def add_shadow(im, color, strength, blur):
+    pad = int(blur * 3 + 4)
+    a = Image.new("L", (im.width + 2 * pad, im.height + 2 * pad), 0)
+    a.paste(im.split()[3], (pad + 2, pad + 3))
+    a = a.filter(ImageFilter.GaussianBlur(blur)).point(lambda v: int(v * strength))
+    out = Image.new("RGBA", a.size, color + (0,))
+    out.putalpha(a)
+    top = Image.new("RGBA", a.size, im.getpixel((0, 0))[:3] + (0,))
+    top.paste(im, (pad, pad))
+    return Image.alpha_composite(out, top)
+
+
+def petal_frames(size, color, blur, angles=24, flutters=5):
+    s = int(size * 1.6)
+    c = s / 2
+    w, h = size * 0.62, size
+    base = Image.new("RGBA", (s, s), color + (0,))
+    d = ImageDraw.Draw(base)
+    d.ellipse((c - w / 2, c - h / 2, c + w / 2, c + h / 2), fill=mix(color, (40, 60, 90), 0.22) + (235,))
+    d.ellipse((c - w / 2 + 1.2, c - h / 2 + 1.2, c + w / 2 - 1.2, c + h / 2 - 1.2), fill=color + (235,))
+    hl = mix(color, (255, 255, 255), 0.55)
+    d.ellipse((c - w * 0.22, c - h * 0.02, c + w * 0.1, c + h * 0.36), fill=hl + (235,))
+    d.polygon([(c - w * 0.2, c - h / 2 - 2), (c, c - h * 0.3), (c + w * 0.2, c - h / 2 - 2)],
+              fill=color + (0,))
+    base = base.filter(ImageFilter.GaussianBlur(0.5))
+    shadow_col = mix(color, (20, 30, 50), 0.75)
+    shadow_k = (0.12 + 0.2 * min(1.0, (size - 12) / 28)) * (0.25 if blur > 2 else 1.0)
+    out = []
+    for ai in range(angles):
+        row = []
+        for fi in range(flutters):
+            fl = 0.3 + 0.7 * fi / (flutters - 1)
+            im = base.resize((max(2, int(s * fl)), s), Image.BICUBIC)
+            im = im.rotate(360 * ai / angles, resample=Image.BICUBIC, expand=True, fillcolor=color + (0,))
+            if blur > 0.7:
+                im = im.filter(ImageFilter.GaussianBlur(blur))
+            row.append(add_shadow(im, shadow_col, shadow_k, 2.5 + blur))
+        out.append(row)
+    return out
+
+
+def sparkle_sprite(size, color):
+    s = int(size * 4)
+    c = s / 2
+    glow = soft_dot(size * 0.7, color, size * 0.6).resize((s, s), Image.BICUBIC)
+    im = Image.new("RGBA", (s, s), color + (0,))
+    d = ImageDraw.Draw(im)
+    L, t = size * 1.8, max(1.0, size * 0.16)
+    d.polygon([(c, c - L), (c + t, c), (c, c + L), (c - t, c)], fill=color + (255,))
+    d.polygon([(c - L, c), (c, c - t), (c + L, c), (c, c + t)], fill=color + (255,))
+    im = Image.alpha_composite(glow, im)
+    return im.filter(ImageFilter.GaussianBlur(0.7))
+
+
+class Particle:
+    pass
+
+
+def make_particles(effect, accent, rng):
+    ps = []
+    cache = {}
+    if effect == "kelopak":
+        tints = [mix(accent, (255, 255, 255), 0.30), mix(accent, (255, 255, 255), 0.55),
+                 mix(accent, (255, 255, 255), 0.78)]
+        count = 44
+    elif effect == "salju":
+        count = 90
+    elif effect == "bara":
+        count = 70
+    elif effect == "hujan":
+        count = 160
+    elif effect == "kunang":
+        count = 46
+    else:
+        count = 0
+    for i in range(count):
+        p = Particle()
+        depth = rng.random() ** 1.6
+        p.depth = depth
+        p.x0 = rng.uniform(0, W)
+        p.y0 = rng.uniform(0, H)
+        p.phase = rng.uniform(0, TAU)
+        p.sway_k = rng.choice([1, 2, 3])
+        p.loops_y = 1 if depth < 0.6 else 2
+        p.loops_x = rng.choice([0, 1]) if effect != "bara" else 0
+        p.wander = False
+        if effect == "kelopak":
+            size = 14 + depth * 30
+            blur = 0.6 + (2.4 if depth > 0.92 else 0)
+            col = rng.choice(tints)
+            key = (round(size / 4), tints.index(col), blur > 2)
+            if key not in cache:
+                cache[key] = petal_frames(size, col, blur)
+            p.grid = cache[key]
+            p.frames = None
+            p.spin = rng.choice([-2, -1, 1, 2])
+            p.flutter = rng.choice([2, 3, 4])
+            p.sway = 30 + depth * 60
+            p.alpha = 0.55 + depth * 0.45
+            p.dir = 1
+        elif effect == "salju":
+            r = 1.2 + depth * 4.5
+            blur = 0.6 + (3.0 if depth > 0.85 else 0)
+            p.frames = [soft_dot(r, (255, 255, 255), blur)]
+            p.grid = None
+            p.spin = 0
+            p.flutter = 0
+            p.sway = 10 + depth * 30
+            p.alpha = 0.35 + depth * 0.55
+            p.dir = 1
+        elif effect == "hujan":
+            p.loops_y = rng.choice([5, 6])
+            p.loops_x = 1
+            span_x, span_y = W + 240, H + 240
+            ang = math.degrees(math.atan2(span_x, p.loops_y * span_y))
+            length = 45 + depth * 90
+            wdt = 1.4 + depth * 2.0
+            col = mix(accent, (235, 240, 255), 0.8)
+            key = ("rain", p.loops_y, round(length / 10), round(wdt * 2))
+            if key not in cache:
+                st = Image.new("RGBA", (int(wdt * 2 + 6), int(length + 6)), col + (0,))
+                sd = ImageDraw.Draw(st)
+                for yy in range(int(length)):
+                    sd.line([(st.width / 2, 3 + yy), (st.width / 2, 4 + yy)], fill=col + (int(255 * (yy / length) ** 1.5),),
+                            width=max(1, int(round(wdt))))
+                st = st.filter(ImageFilter.GaussianBlur(0.6 + (1.5 if depth > 0.85 else 0)))
+                cache[key] = st.rotate(ang, resample=Image.BICUBIC, expand=True, fillcolor=col + (0,))
+            p.frames = [cache[key]]
+            p.grid = None
+            p.spin = 0
+            p.flutter = 0
+            p.sway = 0
+            p.alpha = 0.5 + depth * 0.45
+            p.dir = 1
+        elif effect == "kunang":
+            r = 2.2 + depth * 3.4
+            warm = mix((255, 226, 120), accent, 0.2)
+            glow = soft_dot(r * 3.2, warm, r * 2.0)
+            core = Image.new("RGBA", glow.size, warm + (0,))
+            c = soft_dot(r, mix(warm, (255, 255, 230), 0.7), 0.6)
+            core.alpha_composite(c, ((glow.width - c.width) // 2, (glow.height - c.height) // 2))
+            p.frames = [Image.alpha_composite(glow, core)]
+            p.grid = None
+            p.spin = 0
+            p.flutter = 0
+            p.wander = True
+            p.ax, p.ay = rng.uniform(60, 220), rng.uniform(40, 140)
+            p.fa, p.fb = rng.choice([1, 2]), rng.choice([1, 2, 3])
+            p.ph2 = rng.uniform(0, TAU)
+            p.blink = rng.choice([2, 3, 4])
+            p.alpha = 0.75 + depth * 0.25
+            p.dir = 0
+        else:
+            r = 1.0 + depth * 3.2
+            hot = mix((255, 140, 40), accent, 0.35)
+            glow = soft_dot(r * 3, hot, r * 2.2)
+            core = Image.new("RGBA", glow.size, hot + (0,))
+            c = soft_dot(r, mix(hot, (255, 240, 200), 0.6), 0.5)
+            core.alpha_composite(c, ((glow.width - c.width) // 2, (glow.height - c.height) // 2))
+            p.frames = [Image.alpha_composite(glow, core)]
+            p.grid = None
+            p.spin = 0
+            p.flutter = 0
+            p.sway = 15 + depth * 35
+            p.alpha = 0.45 + depth * 0.55
+            p.dir = -1
+        ps.append(p)
+    return ps
+
+
+def make_sparkles(accent, rng, count):
+    out = []
+    col = mix(accent, (255, 255, 255), 0.75)
+    for i in range(count):
+        s = Particle()
+        s.x = rng.uniform(40, W - 40)
+        s.y = rng.uniform(40, H - 40)
+        s.k = rng.choice([1, 2])
+        s.phase = rng.uniform(0, TAU)
+        s.img = sparkle_sprite(rng.uniform(3, 7), col)
+        out.append(s)
+    return out
+
+
+def with_alpha(im, a):
+    if a >= 0.999:
+        return im
+    r, g, b, al = im.split()
+    al = al.point(lambda v: int(v * a))
+    return Image.merge("RGBA", (r, g, b, al))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    src = os.path.expanduser(sys.argv[1])
+    effect = sys.argv[2] if len(sys.argv) > 2 else "kelopak"
+    if effect not in ("kelopak", "salju", "bara", "hujan", "kunang", "kilau"):
+        print("EFEK harus: kelopak | salju | bara | hujan | kunang | kilau")
+        sys.exit(1)
+    stem = os.path.splitext(os.path.basename(src))[0]
+    out = os.path.expanduser(sys.argv[3]) if len(sys.argv) > 3 else os.path.join(
+        os.path.dirname(src), f"hidup-{stem}-{effect}.mp4")
+
+    rng = random.Random(stem + effect)
+    img = Image.open(src).convert("RGB")
+    accent = accent_of(img)
+
+    zoom_max = 1.045
+    cover = max(W / img.width, H / img.height) * zoom_max
+    base = img.resize((math.ceil(img.width * cover), math.ceil(img.height * cover)), Image.LANCZOS)
+    if effect == "hujan":
+        base = Image.blend(base, Image.new("RGB", base.size, (18, 24, 38)), 0.18)
+    bw, bh = base.size
+
+    parts = make_particles(effect, accent, rng)
+    sparkles = make_sparkles(accent, rng, {"kelopak": 22, "kilau": 22, "hujan": 0}.get(effect, 10))
+
+    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+           "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+           "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p",
+           "-movflags", "+faststart", "-an", out]
+    enc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+    margin = 120
+    for f in range(N):
+        t = f / N
+        # base covers the screen at zoom_max; z is the current zoom (1.015 .. 1.045)
+        z = 1.015 + 0.03 * (0.5 - 0.5 * math.cos(TAU * t))
+        k = zoom_max / z
+        cx = bw / 2 + 12 * math.sin(TAU * t)
+        cy = bh / 2 + 7 * math.sin(TAU * t + 1.3)
+        frame = base.transform((W, H), Image.AFFINE,
+                               (k, 0, cx - k * W / 2, 0, k, cy - k * H / 2),
+                               resample=Image.BICUBIC).convert("RGBA")
+
+        layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        for s in sparkles:
+            a = max(0.0, math.sin(TAU * s.k * t + s.phase)) ** 3
+            if a > 0.02:
+                im = with_alpha(s.img, a * 0.9)
+                layer.alpha_composite(im, (int(s.x - im.width / 2), int(s.y - im.height / 2)))
+        for p in sorted(parts, key=lambda q: q.depth):
+            if p.wander:
+                x = p.x0 + p.ax * math.sin(TAU * p.fa * t + p.phase)
+                y = p.y0 + p.ay * math.sin(TAU * p.fb * t + p.ph2)
+            else:
+                span_y = H + 2 * margin
+                y = (p.y0 + p.dir * p.loops_y * span_y * t) % span_y - margin
+                span_x = W + 2 * margin
+                x = (p.x0 + p.loops_x * span_x * t + p.sway * math.sin(TAU * p.sway_k * t + p.phase)) % span_x - margin
+            if p.grid:
+                ang = (p.phase / TAU + p.spin * t) % 1.0
+                row = p.grid[int(ang * len(p.grid)) % len(p.grid)]
+                fl = abs(math.cos(TAU * p.flutter * t + p.phase))
+                im = row[min(len(row) - 1, int(fl * len(row)))]
+            else:
+                im = p.frames[0]
+            a = p.alpha
+            if p.dir < 0:
+                a *= 0.55 + 0.45 * (0.5 + 0.5 * math.sin(TAU * 3 * t + p.phase))
+            if p.wander:
+                a *= 0.15 + 0.85 * (0.5 + 0.5 * math.sin(TAU * p.blink * t + p.phase)) ** 2
+            im = with_alpha(im, a)
+            layer.alpha_composite(im, (int(x - im.width / 2), int(y - im.height / 2)))
+        frame.alpha_composite(layer)
+        enc.stdin.write(frame.convert("RGB").tobytes())
+        if f % FPS == 0:
+            print(f"\r{os.path.basename(out)}: {100 * f // N}%", end="", flush=True)
+    enc.stdin.close()
+    enc.wait()
+    print(f"\r{os.path.basename(out)}: selesai -> {out}")
+
+
+if __name__ == "__main__":
+    main()

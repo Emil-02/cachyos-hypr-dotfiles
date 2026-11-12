@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Wallpaper acak sesuai mode tampilan yang aktif; warna tema ikut wallpaper.
+DIR="${1:-$HOME/Gambar/Wallpaper/Berkelas}"
+mode=$(cat "$HOME/.local/state/mode-tampilan/mode" 2>/dev/null || echo noctalia)
+pick() { find "$DIR" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | shuf -n1; }
+case "$mode" in
+  noctalia)  noctalia msg wallpaper-random ;;
+  caelestia) caelestia wallpaper -r "$DIR" ;;
+  end4)      f=$(pick); [ -n "$f" ] && "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh" --image "$f" ;;
+  sekaipop)  qs -c sekaipop ipc call wallpaper random ;;
+esac

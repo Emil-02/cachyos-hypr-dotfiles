@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Updates the Noctalia bar greeting ([widget.greeting]) based on the time of day.
+NAME="${GREETING_NAME:-Amboyy}"
+h=$((10#$(date +%H)))
+if   (( h >= 4  && h < 11 )); then text="Selamat Pagi";  glyph="sunrise"
+elif (( h >= 11 && h < 15 )); then text="Selamat Siang"; glyph="sun"
+elif (( h >= 15 && h < 18 )); then text="Selamat Sore";  glyph="sunset-2"
+else                               text="Selamat Malam"; glyph="moon-stars"
+fi
+label="$text, $NAME!"
+[ "$(noctalia msg config-get widget.greeting.label 2>/dev/null)" = "'$label'" ] && exit 0
+noctalia msg config-set widget.greeting.glyph "\"$glyph\"" >/dev/null
+noctalia msg config-set widget.greeting.label "\"$label\"" >/dev/null
