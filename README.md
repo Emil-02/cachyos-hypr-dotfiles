@@ -12,7 +12,7 @@
 
 </div>
 
-> 📸 Screenshot ada di folder [`screenshots/`](screenshots/).
+> 📸 Screenshot menyusul.
 
 ## Mode
 
